@@ -178,13 +178,14 @@ args, _ = parser.parse_known_args(sys.argv[2:])
 print(os.path.abspath(os.path.expanduser(args.app)))
 PYAPP
 )"
-  if [ -d "$selected_app" ] && {
+  selected_parent="$(/usr/bin/dirname "$selected_app")"
+  if [ ! -w "$selected_parent" ] || { [ -d "$selected_app" ] && {
       [ ! -w "$selected_app" ] ||
       [ ! -w "$selected_app/Contents/Resources" ] ||
       [ ! -w "$selected_app/Contents/Info.plist" ] ||
       [ ! -w "$selected_app/Contents/MacOS" ] ||
       [ ! -w "$selected_app/Contents/_CodeSignature" ];
-    }; then
+    }; }; then
     printf '[i] Для изменения приложения нужен доступ администратора.\n'
     printf '[i] macOS запросит пароль в Терминале; символы при вводе не видны.\n'
     /usr/bin/sudo "$PYTHON_BIN" "$PATCH" "$action" "$@"
