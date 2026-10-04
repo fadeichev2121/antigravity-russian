@@ -1,0 +1,32 @@
+name: Пропущенный перевод
+description: Сообщить об английской фразе или неточном переводе
+title: "[Перевод] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: "Не публикуй пароли, ключи, почту, личные чаты и другие личные данные. Скрой их на снимке экрана."
+  - type: input
+    id: app_version
+    attributes:
+      label: Версия приложения
+    validations:
+      required: true
+  - type: input
+    id: section
+    attributes:
+      label: Раздел или экран
+    validations:
+      required: true
+  - type: textarea
+    id: english_text
+    attributes:
+      label: Английская фраза
+      description: Только текст интерфейса, без личного содержимого
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Подробности и снимок экрана
+      description: Удали или скрой личные данные перед публикацией

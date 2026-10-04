@@ -1,0 +1,17 @@
+# Local app bundles, archives, state and credentials must never be published.
+*.app/
+*.asar
+*.asar.unpacked/
+state/
+recovery/
+backup-*/
+work/
+packages/
+download.*/
+build-summary*.json
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+.env.*
+*.log
