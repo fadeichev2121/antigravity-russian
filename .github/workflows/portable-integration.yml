@@ -1,0 +1,49 @@
+name: Windows and Linux installer checks
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  installer:
+    name: ${{ matrix.target.platform }}-${{ matrix.target.arch }}-${{ matrix.version }}
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        version: ['2.19.1', '2.18.1', '2.17.0', '2.16.0', '2.15.1', '2.15.0']
+        target:
+          - {platform: linux, arch: x64, runner: ubuntu-24.04}
+          - {platform: linux, arch: arm64, runner: ubuntu-24.04-arm}
+          - {platform: windows, arch: x64, runner: windows-2025}
+          - {platform: windows, arch: arm64, runner: windows-11-arm}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+      - name: Verify fixture extractor on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $seven = Get-Command 7z -ErrorAction SilentlyContinue
+          if (!$seven) {
+            $seven = @("$env:ProgramFiles/7-Zip/7z.exe", "${env:ProgramFiles(x86)}/7-Zip/7z.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (!$seven) { throw '7-Zip is missing from the runner image; application files have not been changed.' }
+      - name: Test native installer lifecycle against official files
+        run: python tests/portable_integration.py --profile ${{ matrix.target.platform }}-${{ matrix.target.arch }}-${{ matrix.version }}
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUTF8: '1'
+      - name: Keep the text-only verification report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: checks-${{ matrix.target.platform }}-${{ matrix.target.arch }}-${{ matrix.version }}
+          path: test-results/*.json
+          if-no-files-found: warn
+          retention-days: 7

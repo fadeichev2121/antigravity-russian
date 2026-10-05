@@ -22,3 +22,6 @@ __pycache__/
 *.7z
 *.zip
 *.tar.gz
+
+# Disposable CI reports.
+test-results/
