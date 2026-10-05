@@ -69,7 +69,7 @@ SUPPORT="$USER_DIR/Library/Application Support/$REPO"
 
 # A downloaded standalone install.sh fetches the full source package.
 # A clone or extracted package works locally without re-downloading it.
-if [ ! -f "$ROOT/manifest.json" ] || [ ! -f "$ROOT/macos/patch.py" ]; then
+if [ ! -f "$ROOT/manifest.json" ] || [ ! -f "$ROOT/macos/patch.py" ] || [ ! -f "$ROOT/profiles.json" ] || [ ! -f "$ROOT/common/translation.py" ]; then
   "$PYTHON_BIN" - "$SUPPORT" <<'PYDIR'
 from pathlib import Path
 import os, sys
@@ -126,7 +126,7 @@ with tarfile.open(archive, "r:gz") as source:
 manifest = json.loads((destination / "manifest.json").read_text(encoding="utf-8"))
 if manifest.get("repository") != repo or manifest.get("format") != 1:
     raise SystemExit("Ошибка: загружен пакет другого проекта.")
-for name in ("install.sh", "macos/patch.py", "macos/ru.json", "macos/ui-runtime.js"):
+for name in ("install.sh", "macos/patch.py", "macos/ru.json", "macos/ui-runtime.js", "common/asar.py", "common/translation.py", "common/profiles.py", "profiles.json"):
     if not (destination / name).is_file():
         raise SystemExit("Ошибка: в пакете не хватает файлов.")
 PYEXTRACT
@@ -197,12 +197,12 @@ PYAPP
 perform_action() {
   action="$1"
   shift
-  if [ "$action" = "install" ] && [ "$REPO" = "claude-russian" ]; then
-    printf '\nУстановленное приложение Claude будет изменено после полного резервного копирования.\n'
-    printf 'Подпись Anthropic будет заменена локальной; ослабится проверка происхождения библиотек.\n'
+  if [ "$action" = "install" ] && [ "$REPO" = "antigravity-russian" ]; then
+    printf '\nУстановленное приложение Antigravity будет изменено; резервные файлы для отката сохраняются.\n'
+    printf 'Официальная подпись Google, если она есть, будет заменена локальной; ослабится проверка происхождения библиотек.\n'
     printf 'Возможны повторный вход и новые системные разрешения.\n'
     printf 'Откат восстановит исходное приложение и подпись. Подробнее — в README репозитория.\n'
-    printf 'Согласен применить патч к установленному Claude? Введи «да» или «нет»: '
+    printf 'Согласен применить патч к установленному Antigravity? Введи «да» или «нет»: '
     if ! IFS= read -r consent; then
       printf '\n[Ошибка] Согласие не получено. Установка отменена.\n' >&2
       return 1

@@ -1190,5 +1190,6 @@
   "Loading plugins...": "Загрузка плагинов…",
   "No plugins available.": "Нет доступных плагинов.",
   "Conversation Name": "Название диалога",
-  "Project Name": "Название проекта"
+  "Project Name": "Название проекта",
+  "Connect to WSL": "Подключиться к WSL"
 }

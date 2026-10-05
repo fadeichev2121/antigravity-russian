@@ -15,3 +15,10 @@ __pycache__/
 .env
 .env.*
 *.log
+
+# Vendor installers and executable payloads stay outside this repository.
+*.exe
+*.dmg
+*.7z
+*.zip
+*.tar.gz

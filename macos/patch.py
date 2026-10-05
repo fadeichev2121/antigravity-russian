@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reversible Antigravity 2.19.1 macOS UI patch. No network or extra packages."""
+"""Reversible macOS UI patch with verified release profiles."""
 import argparse
 import copy
 from contextlib import contextmanager
@@ -13,7 +13,6 @@ import plistlib
 import pwd
 import re
 import stat
-import struct
 import subprocess
 import sys
 import tempfile
@@ -21,21 +20,24 @@ from datetime import datetime
 import uuid
 
 PACKAGE = Path(__file__).resolve().parent
+ROOT = PACKAGE.parent
+sys.path.insert(0, str(ROOT / "common"))
+from translation import make_patch
+from profiles import load_profiles, compatible
+
 DEFAULT_APP = Path("/Applications/Antigravity.app")
 STATE_SCHEMA = 1
-VERSION = "2.19.1"
-PACKAGE_VERSION = "1.1.0"
-ORIGINAL_ASAR_SHA256 = "341234faf45bd1776fd5418a3c288dedc5487ebfcf153f53d75de17cfe15c1de"
+PACKAGE_VERSION = "2.0.0"
 # Exact archive from the earlier local translation, before this installer's
 # state/backup format existed. Recognition is read-only; never adopt or replace it.
 LEGACY_PATCHED_ASAR_SHA256 = "01ce9917421bb5c01cbcfe44f69c974577dde502b13ab106fd3860a1791b1514"
-MARKER = "// Antigravity RU preload v1"
 MODIFIED_FILES = (
     "Contents/Resources/app.asar", "Contents/Info.plist",
     "Contents/MacOS/Antigravity", "Contents/_CodeSignature/CodeResources",
 )
 BACKUP_NAME = re.compile(r"backup-[0-9a-f]{32}\.app\Z")
 HASH = re.compile(r"[0-9a-f]{64}\Z")
+SUPPORTED_VERSIONS = list(dict.fromkeys(p["version"] for p in load_profiles().values() if p["platform"] == "macos"))
 
 
 def original_user():
@@ -118,7 +120,7 @@ def read_state(state_dir, app, user):
     saved = json.loads(state_path.read_text(encoding="utf-8"))
     if not isinstance(saved, dict) or saved.get("schema") != STATE_SCHEMA or saved.get("app") != str(app):
         raise RuntimeError("Запись состояния относится к другому приложению или формату.")
-    if saved.get("version") != VERSION or saved.get("status") not in {"prepared", "installed", "rolled-back", "restored"}:
+    if saved.get("version") not in SUPPORTED_VERSIONS or saved.get("status") not in {"prepared", "installed", "rolled-back", "restored"}:
         raise RuntimeError("Некорректная версия или состояние установки.")
     if not isinstance(saved.get("backup"), str) or not BACKUP_NAME.fullmatch(saved["backup"]):
         raise RuntimeError("Резервная копия должна находиться непосредственно в каталоге состояния.")
@@ -131,7 +133,7 @@ def read_state(state_dir, app, user):
                 raise RuntimeError("Некорректная контрольная сумма в состоянии.")
             if type(record.get("mode")) is not int or not 0 <= record["mode"] <= 0o777:
                 raise RuntimeError("Некорректные права файла в состоянии.")
-    if saved["original_files"][MODIFIED_FILES[0]]["sha256"] != ORIGINAL_ASAR_SHA256:
+    if not compatible("macos", saved["version"], saved["original_files"][MODIFIED_FILES[0]]["sha256"]):
         raise RuntimeError("Состояние не соответствует поддерживаемому исходному архиву.")
     return saved
 
@@ -196,8 +198,8 @@ def app_info(app):
     if not app.is_dir():
         raise RuntimeError("Нужна обычная папка Antigravity.app.")
     info = plistlib.loads(regular_file(app / "Contents/Info.plist").read_bytes())
-    if info.get("CFBundleShortVersionString") != VERSION:
-        raise RuntimeError(f"Поддерживается Antigravity {VERSION}; установлена версия {info.get('CFBundleShortVersionString')}.")
+    if info.get("CFBundleShortVersionString") not in SUPPORTED_VERSIONS:
+        raise RuntimeError(f"Поддерживаются версии {', '.join(SUPPORTED_VERSIONS)}; установлена версия {info.get('CFBundleShortVersionString')}.")
     minimum = info.get("LSMinimumSystemVersion")
     if minimum:
         def release(value):
@@ -260,143 +262,6 @@ def atomic_write(path, data, mode=0o644, owner=None):
             os.unlink(tmp)
 
 
-class Asar:
-    def __init__(self, data):
-        self.data = data
-        _, header_size, _, json_size = struct.unpack("<4I", data[:16])
-        self.header = json.loads(data[16:16 + json_size])
-        self.base = 8 + header_size
-
-    def entry(self, name):
-        item = self.header
-        for part in name.split("/"):
-            item = item["files"][part]
-        return item
-
-    def read(self, name):
-        item = self.entry(name)
-        start = self.base + int(item["offset"])
-        return self.data[start:start + item["size"]]
-
-    def replace(self, updates):
-        header = copy.deepcopy(self.header)
-        parts = []
-        offset = 0
-
-        def walk(directory, prefix=""):
-            nonlocal offset
-            for name, entry in directory["files"].items():
-                full = prefix + name
-                if "files" in entry:
-                    walk(entry, full + "/")
-                elif "offset" in entry and not entry.get("unpacked"):
-                    content = updates.get(full, self.read(full))
-                    entry["offset"] = str(offset)
-                    entry["size"] = len(content)
-                    if "integrity" in entry and full in updates:
-                        block_size = entry["integrity"].get("blockSize", 4 * 1024 * 1024)
-                        entry["integrity"] = {
-                            "algorithm": "SHA256", "hash": digest(content),
-                            "blockSize": block_size,
-                            "blocks": [digest(content[i:i + block_size]) for i in range(0, len(content), block_size)] or [digest(b"")]
-                        }
-                    parts.append(content)
-                    offset += len(content)
-        walk(header)
-        encoded = json.dumps(header, separators=(",", ":"), ensure_ascii=False).encode()
-        payload = struct.pack("<I", len(encoded)) + encoded
-        payload += b"\0" * (-len(payload) % 4)
-        header_pickle = struct.pack("<I", len(payload)) + payload
-        return struct.pack("<II", 4, len(header_pickle)) + header_pickle + b"".join(parts), digest(encoded)
-
-
-def translated_literals(source, mapping):
-    """Replace a short whitelist of complete native UI string literals."""
-    for original, translated in mapping.items():
-        for quote in ("'", '"'):
-            source = source.replace(quote + original + quote, json.dumps(translated, ensure_ascii=False))
-    return source
-
-
-def make_patch(original, dictionary):
-    asar = Asar(original)
-    preload = asar.read("dist/preload.js").decode()
-    if MARKER in preload:
-        raise RuntimeError("Этот архив уже содержит русский патч.")
-    # Native popup menus bypass the DOM translator. Translate labels before IPC,
-    # retaining the IDs used to dispatch the original actions and all other fields.
-    context_labels = [
-        "Pin", "Unpin", "Archive", "Unarchive", "Split", "Split Right", "Split Down",
-        "Replace With New", "Remove From Split", "Open File", "New Terminal",
-        "Rename", "Copy", "Delete", "Terminal", "Conversation Name", "Project Name",
-        "Copy Path", "Copy Link", "Open in IDE", "Move to Project",
-    ]
-    context_dictionary = {key: dictionary[key] for key in context_labels if key in dictionary}
-    api_anchor = "const electronNativeAPI = {"
-    context_anchor = "showContextMenu: (items) => electron_1.ipcRenderer.invoke('window:show-context-menu', items),"
-    if preload.count(api_anchor) != 1 or preload.count(context_anchor) != 1:
-        raise RuntimeError("Изменилась структура контекстного меню; установка отменена.")
-    context_hook = "const agRuContextLabels = " + json.dumps(context_dictionary, ensure_ascii=False) + ";\n"
-    context_hook += "const agRuContextItems = (items) => Array.isArray(items) ? items.map(item => { if (!item || typeof item !== 'object') return item; const result = {...item}; if (Object.hasOwn(agRuContextLabels, item.label)) result.label = agRuContextLabels[item.label]; if (Array.isArray(item.submenu)) result.submenu = agRuContextItems(item.submenu); return result; }) : items;\n"
-    preload = preload.replace(api_anchor, context_hook + api_anchor, 1)
-    preload = preload.replace(context_anchor, context_anchor.replace(
-        "'window:show-context-menu', items", "'window:show-context-menu', agRuContextItems(items)"), 1)
-    runtime = regular_file(PACKAGE / "ui-runtime.js").read_text(encoding="utf-8")
-    runtime = runtime.replace("__RU_DICTIONARY__", json.dumps(dictionary, ensure_ascii=False))
-    updates = {"dist/preload.js": (preload + "\n" + MARKER + "\n" + runtime + "\n").encode()}
-
-    menu = asar.read("dist/menu.js").decode()
-    anchor = "    electron_1.Menu.setApplicationMenu(menu);"
-    if anchor not in menu:
-        raise RuntimeError("Изменилась структура меню; установка отменена.")
-    labels = [
-        "File", "Edit", "View", "Window", "Help", "About Antigravity", "Services",
-        "Hide Antigravity", "Hide Others", "Show All", "Quit Antigravity", "Quit",
-        "New Window", "Docs", "Undo", "Redo", "Cut", "Copy", "Paste",
-        "Paste and Match Style", "Delete", "Select All", "Reload", "Force Reload",
-        "Actual Size", "Zoom In", "Zoom Out", "Toggle Full Screen", "Minimize",
-        "Close", "Close Window", "Zoom", "Bring All to Front", "Front",
-        "Speech", "Start Speaking", "Stop Speaking", "Substitutions",
-        "Show Substitutions", "Smart Quotes", "Smart Dashes", "Text Replacement",
-        "Smart Copy/Paste", "Smart Links", "Spelling and Grammar", "Show Spelling and Grammar",
-        "Check Document Now", "Check Spelling While Typing", "Check Grammar With Spelling",
-        "Correct Spelling Automatically", "Transformations", "Make Upper Case", "Make Lower Case", "Capitalize"
-    ]
-    native_dictionary = {key: dictionary[key] for key in labels if key in dictionary}
-    addition = "\n    // Antigravity RU native menu; command IDs and handlers stay intact.\n"
-    addition += "    const agRuLabels = " + json.dumps(native_dictionary, ensure_ascii=False) + ";\n"
-    addition += "    const agRuMenu = (items) => { for (const item of items) { if (Object.hasOwn(agRuLabels, item.label)) item.label = agRuLabels[item.label]; if (item.submenu) agRuMenu(item.submenu.items); } };\n"
-    addition += "    agRuMenu(menu.items);\n"
-    menu = menu.replace(anchor, addition + anchor, 1)
-    updates["dist/menu.js"] = menu.encode()
-    updater = translated_literals(asar.read("dist/updater.js").decode(), {
-        "Check for Updates": "Проверить обновления",
-        "Checking for Updates...": "Проверка обновлений…",
-        "Downloading Update...": "Загрузка обновления…",
-        "Restart to Update": "Перезапустить для обновления",
-        "No updates available": "Обновлений нет"
-    })
-    # Action keys and visible labels use the same enum values.
-    updates["dist/updater.js"] = updater.encode()
-    main = translated_literals(asar.read("dist/main.js").decode(), {
-        "New Window": "Новое окно", "No agents running": "Нет запущенных агентов",
-        "Quit": "Выйти", "Cancel": "Отмена", "Confirm Quit": "Подтверждение выхода",
-        "Are you sure you want to quit?": "Выйти из Antigravity?",
-        "There may be agents or background tasks running.": "Возможно, ещё работают агенты или фоновые задачи."
-    })
-    tick = chr(96)
-    old_open = "label: " + tick + "Open $" + "{electron_1.app.getName()}" + tick
-    new_open = "label: " + tick + "Открыть $" + "{electron_1.app.getName()}" + tick
-    main = main.replace(old_open, new_open)
-    updates["dist/main.js"] = main.encode()
-    tray = asar.read("dist/tray.js").decode()
-    old_count = "(count > 0 ? " + tick + "$" + "{count}" + tick + " : 'No') +\n                    ' agent' +\n                    (count === 1 ? '' : 's') +\n                    ' running'"
-    new_count = "(count > 0 ? " + tick + "Запущено агентов: $" + "{count}" + tick + " : 'Нет запущенных агентов')"
-    if old_count not in tray:
-        raise RuntimeError("Изменилась структура меню агентов; установка отменена.")
-    updates["dist/tray.js"] = tray.replace(old_count, new_count).encode()
-    return asar.replace(updates)
-
 
 def running(app):
     pattern = "^" + re.escape(str(app / "Contents/MacOS/Antigravity")) + "($| )"
@@ -406,14 +271,37 @@ def running(app):
     return result.returncode == 0
 
 
-def require_local_signature(app):
+def signature_kind(app):
     result = subprocess.run(["/usr/bin/codesign", "-d", "--verbose=2", str(app)], capture_output=True, text=True)
     details = result.stdout + "\n" + result.stderr
-    if result.returncode != 0 or not re.search(r"^Signature=adhoc$", details, re.MULTILINE) or not re.search(r"^TeamIdentifier=not set$", details, re.MULTILINE):
-        raise RuntimeError("Этот вариант патча поддерживает сборку с локальной ad-hoc подписью. Официально подписанную сборку он не изменяет.")
+    if result.returncode != 0:
+        raise RuntimeError("Подпись приложения повреждена или не определена.")
+    if re.search(r"^Signature=adhoc$", details, re.MULTILINE) and re.search(r"^TeamIdentifier=not set$", details, re.MULTILINE):
+        return "local"
+    if re.search(r"^TeamIdentifier=EQHXZ8M8AV$", details, re.MULTILINE) and "Developer ID Application: Google LLC" in details:
+        subprocess.run(["/usr/bin/codesign", "--verify", "--strict", str(app)], check=True, capture_output=True)
+        return "google"
+    raise RuntimeError("Поддерживаются исходная подпись Google и локальная ad-hoc подпись. Другие подписи не поддерживаются.")
 
 
-def install(app, state_dir, user):
+def sign_patch(app, official):
+    metadata = "identifier,flags,runtime" if official else "identifier,entitlements,flags,runtime"
+    command = ["/usr/bin/codesign", "--force", "--sign", "-", "--preserve-metadata=" + metadata]
+    if not official:
+        subprocess.run(command + [str(app)], check=True)
+        return
+    # Keep Google's original permissions and hardened runtime. Only the outer
+    # bundle changes; its libraries still retain Google's original Team ID.
+    result = subprocess.run(["/usr/bin/codesign", "-d", "--entitlements", ":-", str(app)], capture_output=True, check=True)
+    permissions = plistlib.loads(result.stdout) if result.stdout.strip() else {}
+    permissions["com.apple.security.cs.disable-library-validation"] = True
+    with tempfile.NamedTemporaryFile(prefix="antigravity-ru-entitlements-", suffix=".plist") as stream:
+        stream.write(plistlib.dumps(permissions))
+        stream.flush()
+        subprocess.run(command + ["--entitlements", stream.name, str(app)], check=True)
+
+
+def install(app, state_dir, user, approve_signature=False):
     info = app_info(app)
     saved = read_state(state_dir, app, user)
     info_path = app / "Contents/Info.plist"
@@ -431,7 +319,14 @@ def install(app, state_dir, user):
         raise RuntimeError("Некорректный словарь перевода.")
     upgrading = bool(saved and saved["status"] == "installed")
     if upgrading:
-        verify_records(app, saved["patched_files"])
+        try:
+            verify_records(app, saved["patched_files"])
+        except RuntimeError:
+            if not compatible('macos', info['CFBundleShortVersionString'], digest(original)):
+                raise
+            upgrading = False
+            print('[i] Найдена поддерживаемая исходная сборка после обновления. Предыдущая резервная копия сохранится.')
+    if upgrading:
         backup = safe_path(state_dir / saved["backup"])
         if not backup.is_dir():
             raise RuntimeError("Резервная копия не является папкой приложения.")
@@ -443,8 +338,10 @@ def install(app, state_dir, user):
         raise RuntimeError("Предыдущая установка не завершена. Сохранена резервная копия; повторная установка остановлена.")
     if running(app):
         raise RuntimeError("Полностью закрой Antigravity через Cmd+Q, затем повтори установку.")
-    require_local_signature(app)
-    if digest(original) != ORIGINAL_ASAR_SHA256:
+    official = signature_kind(app) == "google"
+    if official and not approve_signature:
+        raise RuntimeError("Нужно согласие --approve-local-signature: подпись Google заменяется локальной, проверка происхождения библиотек ослабляется. Исходное приложение сохраняется для отката.")
+    if not compatible("macos", info["CFBundleShortVersionString"], digest(original)):
         raise RuntimeError("Архив не совпадает с поддерживаемой исходной сборкой или известным ранним переводом. Выбери «Статус / совместимость» для подробностей. Файлы не изменены.")
     patched, header_hash = make_patch(original, dictionary)
     if upgrading and digest(patched) == saved["patched_files"][MODIFIED_FILES[0]]["sha256"]:
@@ -482,7 +379,7 @@ def install(app, state_dir, user):
     anticipated_files[MODIFIED_FILES[0]]["sha256"] = digest(patched)
     anticipated_files[MODIFIED_FILES[1]]["sha256"] = digest(patched_info)
     state = {
-        "schema": STATE_SCHEMA, "status": "prepared", "version": VERSION,
+        "schema": STATE_SCHEMA, "status": "prepared", "version": info["CFBundleShortVersionString"],
         "app": str(app), "backup": backup.name, "created_at": datetime.now().isoformat(timespec="seconds"),
         "original_files": original_files, "patched_files": anticipated_files,
         "dictionary_entries": len(dictionary), "package_version": PACKAGE_VERSION,
@@ -500,9 +397,8 @@ def install(app, state_dir, user):
     try:
         atomic_write(asar_path, patched, original_files[MODIFIED_FILES[0]]["mode"])
         atomic_write(info_path, patched_info, original_files[MODIFIED_FILES[1]]["mode"])
-        # The original app already uses an ad-hoc signature; preserve its metadata.
-        # Nested binaries are unchanged, so only the outer bundle is signed.
-        subprocess.run(["/usr/bin/codesign", "--force", "--sign", "-", "--preserve-metadata=identifier,entitlements,flags,runtime", str(app)], check=True)
+        # Nested binaries are unchanged; only the outer bundle is signed.
+        sign_patch(app, official)
         state["status"] = "installed"
         state["patched_files"] = records(app)
         save_state(state_dir, state, user)
@@ -589,12 +485,12 @@ def status(app, state_dir, user):
             print("Записи и резервной копии публичного установщика нет. Автоматический откат этой установки недоступен.")
             return
         print("Патч не зарегистрирован.")
-        print("Исходный архив поддерживается." if current == ORIGINAL_ASAR_SHA256 else "Архив отличается от поддерживаемой сборки.")
-        if current != ORIGINAL_ASAR_SHA256:
+        print("Исходный архив поддерживается." if compatible("macos", info["CFBundleShortVersionString"], current) else "Архив отличается от поддерживаемой сборки.")
+        if not compatible("macos", info["CFBundleShortVersionString"], current):
             print(f"SHA-256 архива: {current}")
         try:
-            require_local_signature(app)
-            print("Локальная подпись поддерживается.")
+            kind = signature_kind(app)
+            print("Подпись Google поддерживается после явного согласия на локальную переподпись." if kind == "google" else "Локальная подпись поддерживается.")
         except RuntimeError as error:
             print("[!] " + str(error))
         return
@@ -603,15 +499,23 @@ def status(app, state_dir, user):
     print(f"Резервная копия: {state_dir / state['backup']}")
     expected = state["patched_files"] if state["status"] == "installed" else state["original_files"]
     if state["status"] != "prepared":
-        verify_records(app, expected)
+        try:
+            verify_records(app, expected)
+        except RuntimeError:
+            if state['status'] != 'installed' or not compatible('macos', info['CFBundleShortVersionString'], current):
+                raise
+            print('Найдена поддерживаемая исходная сборка после обновления. Выбери установку для повторного перевода.')
+            print('Старый откат не применяется поверх обновлённого приложения.')
+            return
         print("Зарегистрированные файлы совпадают с состоянием.")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Русский интерфейс Antigravity 2.19.1 для macOS")
+    parser = argparse.ArgumentParser(description="Русский интерфейс Antigravity Desktop для macOS")
     parser.add_argument("action", choices=["install", "status", "restore"])
     parser.add_argument("--app", type=Path, default=DEFAULT_APP)
     parser.add_argument("--state-dir", type=Path, help="Каталог резервных копий и состояния (по умолчанию в ~/Library/Application Support/antigravity-russian/state)")
+    parser.add_argument("--approve-local-signature", action="store_true")
     args = parser.parse_args()
     try:
         if sys.platform != "darwin":
@@ -628,7 +532,10 @@ def main():
             action(app, state_dir, user)
         else:
             with state_lock(state_dir, user):
-                action(app, state_dir, user)
+                if args.action == 'install':
+                    install(app, state_dir, user, args.approve_local_signature)
+                else:
+                    action(app, state_dir, user)
     except Exception as error:
         print("Ошибка: " + str(error), file=sys.stderr)
         return 1
