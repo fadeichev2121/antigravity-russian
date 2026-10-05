@@ -24,6 +24,7 @@ PACKAGE = Path(__file__).resolve().parent
 DEFAULT_APP = Path("/Applications/Antigravity.app")
 STATE_SCHEMA = 1
 VERSION = "2.19.1"
+PACKAGE_VERSION = "1.1.0"
 ORIGINAL_ASAR_SHA256 = "341234faf45bd1776fd5418a3c288dedc5487ebfcf153f53d75de17cfe15c1de"
 # Exact archive from the earlier local translation, before this installer's
 # state/backup format existed. Recognition is read-only; never adopt or replace it.
@@ -322,6 +323,24 @@ def make_patch(original, dictionary):
     preload = asar.read("dist/preload.js").decode()
     if MARKER in preload:
         raise RuntimeError("Этот архив уже содержит русский патч.")
+    # Native popup menus bypass the DOM translator. Translate labels before IPC,
+    # retaining the IDs used to dispatch the original actions and all other fields.
+    context_labels = [
+        "Pin", "Unpin", "Archive", "Unarchive", "Split", "Split Right", "Split Down",
+        "Replace With New", "Remove From Split", "Open File", "New Terminal",
+        "Rename", "Copy", "Delete", "Terminal", "Conversation Name", "Project Name",
+        "Copy Path", "Copy Link", "Open in IDE", "Move to Project",
+    ]
+    context_dictionary = {key: dictionary[key] for key in context_labels if key in dictionary}
+    api_anchor = "const electronNativeAPI = {"
+    context_anchor = "showContextMenu: (items) => electron_1.ipcRenderer.invoke('window:show-context-menu', items),"
+    if preload.count(api_anchor) != 1 or preload.count(context_anchor) != 1:
+        raise RuntimeError("Изменилась структура контекстного меню; установка отменена.")
+    context_hook = "const agRuContextLabels = " + json.dumps(context_dictionary, ensure_ascii=False) + ";\n"
+    context_hook += "const agRuContextItems = (items) => Array.isArray(items) ? items.map(item => { if (!item || typeof item !== 'object') return item; const result = {...item}; if (Object.hasOwn(agRuContextLabels, item.label)) result.label = agRuContextLabels[item.label]; if (Array.isArray(item.submenu)) result.submenu = agRuContextItems(item.submenu); return result; }) : items;\n"
+    preload = preload.replace(api_anchor, context_hook + api_anchor, 1)
+    preload = preload.replace(context_anchor, context_anchor.replace(
+        "'window:show-context-menu', items", "'window:show-context-menu', agRuContextItems(items)"), 1)
     runtime = regular_file(PACKAGE / "ui-runtime.js").read_text(encoding="utf-8")
     runtime = runtime.replace("__RU_DICTIONARY__", json.dumps(dictionary, ensure_ascii=False))
     updates = {"dist/preload.js": (preload + "\n" + MARKER + "\n" + runtime + "\n").encode()}
@@ -337,7 +356,11 @@ def make_patch(original, dictionary):
         "Paste and Match Style", "Delete", "Select All", "Reload", "Force Reload",
         "Actual Size", "Zoom In", "Zoom Out", "Toggle Full Screen", "Minimize",
         "Close", "Close Window", "Zoom", "Bring All to Front", "Front",
-        "Speech", "Start Speaking", "Stop Speaking"
+        "Speech", "Start Speaking", "Stop Speaking", "Substitutions",
+        "Show Substitutions", "Smart Quotes", "Smart Dashes", "Text Replacement",
+        "Smart Copy/Paste", "Smart Links", "Spelling and Grammar", "Show Spelling and Grammar",
+        "Check Document Now", "Check Spelling While Typing", "Check Grammar With Spelling",
+        "Correct Spelling Automatically", "Transformations", "Make Upper Case", "Make Lower Case", "Capitalize"
     ]
     native_dictionary = {key: dictionary[key] for key in labels if key in dictionary}
     addition = "\n    // Antigravity RU native menu; command IDs and handlers stay intact.\n"
@@ -403,10 +426,19 @@ def install(app, state_dir, user):
         return
     mutation_tools()
     writable_app(app)
-    if saved and saved["status"] == "installed":
+    dictionary = json.loads(regular_file(PACKAGE / "ru.json").read_text(encoding="utf-8"))
+    if not isinstance(dictionary, dict) or not dictionary or not all(isinstance(k, str) and isinstance(v, str) for k, v in dictionary.items()):
+        raise RuntimeError("Некорректный словарь перевода.")
+    upgrading = bool(saved and saved["status"] == "installed")
+    if upgrading:
         verify_records(app, saved["patched_files"])
-        print("[OK] Русский патч уже установлен. Перезапусти Antigravity.")
-        return
+        backup = safe_path(state_dir / saved["backup"])
+        if not backup.is_dir():
+            raise RuntimeError("Резервная копия не является папкой приложения.")
+        verify_records(backup, saved["original_files"])
+        # Always rebuild from the verified original, never patch an already
+        # translated archive or replace the original rollback backup.
+        original = regular_file(backup / MODIFIED_FILES[0]).read_bytes()
     if saved and saved["status"] == "prepared":
         raise RuntimeError("Предыдущая установка не завершена. Сохранена резервная копия; повторная установка остановлена.")
     if running(app):
@@ -414,38 +446,56 @@ def install(app, state_dir, user):
     require_local_signature(app)
     if digest(original) != ORIGINAL_ASAR_SHA256:
         raise RuntimeError("Архив не совпадает с поддерживаемой исходной сборкой или известным ранним переводом. Выбери «Статус / совместимость» для подробностей. Файлы не изменены.")
-    dictionary = json.loads(regular_file(PACKAGE / "ru.json").read_text(encoding="utf-8"))
-    if not isinstance(dictionary, dict) or not dictionary or not all(isinstance(k, str) and isinstance(v, str) for k, v in dictionary.items()):
-        raise RuntimeError("Некорректный словарь перевода.")
     patched, header_hash = make_patch(original, dictionary)
-    original_files = records(app)
+    if upgrading and digest(patched) == saved["patched_files"][MODIFIED_FILES[0]]["sha256"]:
+        print("[OK] Установлена актуальная версия русского патча.")
+        return
+    before_files = records(app)
+    original_files = saved["original_files"] if upgrading else before_files
     info["ElectronAsarIntegrity"] = {"Resources/app.asar": {"algorithm": "SHA256", "hash": header_hash}}
     patched_info = plistlib.dumps(info, fmt=plistlib.FMT_XML, sort_keys=False)
     private_directory(state_dir, user)
     if saved:
         snapshot = state_dir / ("record-" + uuid.uuid4().hex + ".json")
         atomic_write(snapshot, json.dumps(saved, ensure_ascii=False, indent=2).encode(), 0o600, user)
-    backup = state_dir / ("backup-" + uuid.uuid4().hex + ".app")
-    backup.mkdir(mode=0o700)
-    print("[i] Сохраняю полную резервную копию приложения…", flush=True)
-    subprocess.run(["/usr/bin/ditto", str(app), str(backup)], check=True)
-    os.chmod(backup, 0o700)
-    transfer_owner(backup, user)
+    if upgrading:
+        before = state_dir / ("before-upgrade-" + uuid.uuid4().hex)
+        private_directory(before, user)
+        print("[i] Обновляю перевод; исходная резервная копия сохранится…", flush=True)
+        for index, relative in enumerate(MODIFIED_FILES):
+            atomic_write(before / str(index), regular_file(app / relative).read_bytes(), 0o600, user)
+            if file_hash(before / str(index)) != before_files[relative]["sha256"]:
+                raise RuntimeError("Файлы изменились при подготовке обновления. Действие отменено.")
+        atomic_write(before / "state.json", json.dumps(saved, ensure_ascii=False, indent=2).encode(), 0o600, user)
+    else:
+        backup = state_dir / ("backup-" + uuid.uuid4().hex + ".app")
+        backup.mkdir(mode=0o700)
+        print("[i] Сохраняю полную резервную копию приложения…", flush=True)
+        subprocess.run(["/usr/bin/ditto", str(app), str(backup)], check=True)
+        os.chmod(backup, 0o700)
+        transfer_owner(backup, user)
     verify_records(backup, original_files)
-    verify_records(app, original_files)
-    anticipated_files = copy.deepcopy(original_files)
+    verify_records(app, before_files)
+    if running(app):
+        raise RuntimeError("Antigravity был запущен во время подготовки. Установка отменена.")
+    anticipated_files = copy.deepcopy(before_files)
     anticipated_files[MODIFIED_FILES[0]]["sha256"] = digest(patched)
     anticipated_files[MODIFIED_FILES[1]]["sha256"] = digest(patched_info)
     state = {
         "schema": STATE_SCHEMA, "status": "prepared", "version": VERSION,
         "app": str(app), "backup": backup.name, "created_at": datetime.now().isoformat(timespec="seconds"),
         "original_files": original_files, "patched_files": anticipated_files,
-        "dictionary_entries": len(dictionary),
+        "dictionary_entries": len(dictionary), "package_version": PACKAGE_VERSION,
     }
+    if upgrading:
+        state["upgrade_recovery"] = before.name
     save_state(state_dir, state, user)
     if running(app):
-        state["status"] = "rolled-back"
-        save_state(state_dir, state, user)
+        if upgrading:
+            save_state(state_dir, saved, user)
+        else:
+            state["status"] = "rolled-back"
+            save_state(state_dir, state, user)
         raise RuntimeError("Antigravity был запущен во время подготовки. Установка отменена.")
     try:
         atomic_write(asar_path, patched, original_files[MODIFIED_FILES[0]]["mode"])
@@ -457,15 +507,25 @@ def install(app, state_dir, user):
         state["patched_files"] = records(app)
         save_state(state_dir, state, user)
     except BaseException:
-        print("Установка прервана; восстанавливаю исходные файлы.", file=sys.stderr)
-        verify_records(backup, original_files)
-        for relative, record in original_files.items():
-            source = regular_file(backup / relative)
-            atomic_write(app / relative, source.read_bytes(), record["mode"])
-        state["status"] = "rolled-back"
-        save_state(state_dir, state, user)
+        print("Установка прервана; восстанавливаю файлы до её начала.", file=sys.stderr)
+        if upgrading:
+            recovery = [(relative, before / str(index)) for index, relative in enumerate(MODIFIED_FILES)]
+        else:
+            verify_records(backup, original_files)
+            recovery = [(relative, backup / relative) for relative in MODIFIED_FILES]
+        for relative, source in recovery:
+            regular_file(source)
+            if file_hash(source) != before_files[relative]["sha256"]:
+                raise RuntimeError("Аварийная копия изменена; автоматическое восстановление остановлено.")
+        for relative, source in recovery:
+            atomic_write(app / relative, source.read_bytes(), before_files[relative]["mode"])
+        if upgrading:
+            save_state(state_dir, saved, user)
+        else:
+            state["status"] = "rolled-back"
+            save_state(state_dir, state, user)
         raise
-    print(f"[OK] Патч установлен. В словаре {len(dictionary)} записей. Перезапусти Antigravity.")
+    print(f"[OK] Патч {PACKAGE_VERSION} установлен. В словаре {len(dictionary)} записей. Перезапусти Antigravity.")
     print(f"[i] Резервная копия: {backup}")
 
 
@@ -539,6 +599,7 @@ def status(app, state_dir, user):
             print("[!] " + str(error))
         return
     print(f"Состояние: {state['status']}")
+    print(f"Версия пакета: {state.get('package_version', '1.0.x')}")
     print(f"Резервная копия: {state_dir / state['backup']}")
     expected = state["patched_files"] if state["status"] == "installed" else state["original_files"]
     if state["status"] != "prepared":

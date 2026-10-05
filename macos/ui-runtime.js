@@ -20,6 +20,7 @@
     "[data-testid^='instance-selector-item-']"
   ].join(",");
   const CONTROL = "button,[role='menuitem'],[data-tooltip-id]";
+  const TIMESTAMP = "[data-testid^='conversation-row-'] span[data-screenshot-volatile].text-xs";
   const ATTRS = ["title", "aria-label", "placeholder", "data-placeholder", "data-tooltip-content"];
   function omitted(el) {
     if (!el || el.closest(OMIT)) return true;
@@ -50,6 +51,18 @@
     return text.slice(0, start) + translated + text.slice(start + trimmed.length);
   }
   function textNode(node) {
+    // The timestamp shares a row with a user-supplied title. Only this known
+    // metadata span may bypass NAMED; never translate the rest of the row.
+    const parent = node.parentElement;
+    if (parent?.matches(TIMESTAMP) && !parent.closest(OMIT)) {
+      const original = node.nodeValue;
+      const trimmed = original.trim();
+      const match = /^(\d+)\s*(s|m|h|d|w|mo|y)$/.exec(trimmed);
+      const units = {s: "с", m: "мин", h: "ч", d: "д", w: "нед", mo: "мес", y: "г"};
+      const value = trimmed === "now" ? "сейчас" : match ? match[1] + " " + units[match[2]] : undefined;
+      if (value) node.nodeValue = original.replace(trimmed, value);
+      return;
+    }
     if (omitted(node.parentElement)) return;
     const original = node.nodeValue;
     const value = ru(original);

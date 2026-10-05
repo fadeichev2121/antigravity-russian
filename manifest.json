@@ -1,9 +1,9 @@
 {
   "format": 1,
   "repository": "antigravity-russian",
-  "package_version": "1.0.1",
+  "package_version": "1.1.0",
   "platform": "macOS",
   "app_version": "2.19.1",
-  "dictionary_entries": 1142,
+  "dictionary_entries": 1192,
   "native_entries": null
 }
