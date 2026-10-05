@@ -89,18 +89,23 @@ def private_directory(path, uid, gid):
         # Restrict this project's backup/state directory; never change app ACLs.
         command = """
 $ErrorActionPreference='Stop'
-$p=$env:ANTIGRAVITY_RU_PRIVATE_DIRECTORY
 $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$targets=@(ConvertFrom-Json -InputObject $env:ANTIGRAVITY_RU_PRIVATE_DIRECTORIES)
+foreach ($p in $targets) {
 $old=[System.IO.Directory]::GetAccessControl($p)
-if ($env:ANTIGRAVITY_RU_NEW_DIRECTORY -ne '1' -and $old.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value) { throw 'State directory belongs to another user.' }
+if ($env:ANTIGRAVITY_RU_NEW_DIRECTORY -ne '1' -and $old.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value) { throw ('State directory belongs to another user: ' + $p) }
 $acl=New-Object System.Security.AccessControl.DirectorySecurity
 $acl.SetAccessRuleProtection($true,$false)
 $acl.SetOwner($sid)
 $rule=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,[System.Security.AccessControl.FileSystemRights]::FullControl,([System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit),[System.Security.AccessControl.PropagationFlags]::None,[System.Security.AccessControl.AccessControlType]::Allow)
 $acl.AddAccessRule($rule)
 [System.IO.Directory]::SetAccessControl($p,$acl)
+}
 """
-        environment = dict(os.environ, ANTIGRAVITY_RU_PRIVATE_DIRECTORY=str(path),
+        # Intermediate parents must get the same private owner/ACL too. An
+        # elevated Windows token otherwise makes them Administrators-owned.
+        targets = list(reversed(missing)) if missing else [path]
+        environment = dict(os.environ, ANTIGRAVITY_RU_PRIVATE_DIRECTORIES=json.dumps([str(item) for item in targets]),
                            ANTIGRAVITY_RU_NEW_DIRECTORY='1' if path in missing else '0')
         subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', command],
                        env=environment, check=True, stdout=subprocess.DEVNULL)

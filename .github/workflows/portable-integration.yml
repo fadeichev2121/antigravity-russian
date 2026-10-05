@@ -1,6 +1,11 @@
 name: Windows and Linux installer checks
 on:
   workflow_dispatch:
+    inputs:
+      smoke:
+        description: Check only the current release on the four native systems
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -12,7 +17,7 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        version: ['2.19.1', '2.18.1', '2.17.0', '2.16.0', '2.15.1', '2.15.0']
+        version: ${{ fromJSON(inputs.smoke && '["2.19.1"]' || '["2.19.1", "2.18.1", "2.17.0", "2.16.0", "2.15.1", "2.15.0"]') }}
         target:
           - {platform: linux, arch: x64, runner: ubuntu-24.04}
           - {platform: linux, arch: arm64, runner: ubuntu-24.04-arm}
