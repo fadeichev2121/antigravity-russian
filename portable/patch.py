@@ -21,7 +21,7 @@ from asar import Asar
 from translation import make_patch
 from profiles import load_profiles
 
-PACKAGE_VERSION = '2.0.0'
+PACKAGE_VERSION = '2.0.1'
 
 SYSTEM = 'windows' if sys.platform == 'win32' else 'linux' if sys.platform.startswith('linux') else None
 FILES = ['resources/app.asar'] + (['Antigravity.exe'] if SYSTEM == 'windows' else [])
@@ -313,8 +313,21 @@ def require_closed(app):
 def match_profile(app):
     hashes = {name: file_hash(app / name) for name in FILES}
     version = json.loads(Asar((app / 'resources/app.asar').read_bytes()).read('package.json'))['version']
+    architecture = None
+    if SYSTEM == 'linux':
+        binary = safe_path(app / 'antigravity')
+        with binary.open('rb') as source:
+            header = source.read(20)
+        if len(header) != 20 or header[:5] != b'\x7fELF\x02' or header[5] not in {1, 2}:
+            raise RuntimeError('Не удалось определить архитектуру Linux-приложения.')
+        machine = int.from_bytes(header[18:20], 'little' if header[5] == 1 else 'big')
+        architecture = {62: 'x64', 183: 'arm64'}.get(machine)
+        if architecture is None:
+            raise RuntimeError('Архитектура Linux-приложения не поддерживается.')
     for key, profile in profiles().items():
         if profile['platform'] == SYSTEM and profile['version'] == version and hashes['resources/app.asar'] == profile['asar_sha256']:
+            if architecture is not None and profile['arch'] != architecture:
+                continue
             if SYSTEM == 'windows' and hashes['Antigravity.exe'] != profile['exe_sha256']:
                 continue
             return key, profile

@@ -27,7 +27,7 @@ from profiles import load_profiles, compatible
 
 DEFAULT_APP = Path("/Applications/Antigravity.app")
 STATE_SCHEMA = 1
-PACKAGE_VERSION = "2.0.0"
+PACKAGE_VERSION = "2.0.1"
 # Exact archive from the earlier local translation, before this installer's
 # state/backup format existed. Recognition is read-only; never adopt or replace it.
 LEGACY_PATCHED_ASAR_SHA256 = "01ce9917421bb5c01cbcfe44f69c974577dde502b13ab106fd3860a1791b1514"

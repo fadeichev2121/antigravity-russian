@@ -63,7 +63,7 @@ def extract(profile, folder):
         if not seven:
             raise RuntimeError('7-Zip is required to read the official NSIS fixture; the installer will not be executed')
         listing = run([seven, 'l', archive]).stdout
-        payload = next(line.split()[-1] for line in listing.splitlines() if '$PLUGINSDIR/app-' in line and '.7z' in line)
+        payload = next(line.split()[-1] for line in listing.splitlines() if '$PLUGINSDIR/app-' in line.replace('\\', '/') and '.7z' in line)
         run([seven, 'e', archive, '-i!' + payload, '-o' + str(folder), '-y'])
         packed = folder / Path(payload.replace('\\', '/')).name
         run([seven, 'x', packed, 'resources/app.asar', 'Antigravity.exe', '-o' + str(app), '-y'])
@@ -72,14 +72,23 @@ def extract(profile, folder):
             raise AssertionError('Official EXE identity mismatch')
     else:
         with tarfile.open(archive, 'r:gz') as source:
-            member = next(item for item in source if item.name.endswith('/resources/app.asar'))
-            if not member.isfile():
-                raise AssertionError('ASAR is not a regular archive member')
-            target = app / 'resources/app.asar'
-            target.parent.mkdir()
-            with source.extractfile(member) as incoming, target.open('xb') as output:
-                shutil.copyfileobj(incoming, output)
-            target.chmod(0o644)
+            extracted = set()
+            for member in source:
+                name = ('resources/app.asar' if member.name.endswith('/resources/app.asar')
+                        else 'antigravity' if member.name.endswith('/antigravity') else None)
+                if name is None:
+                    continue
+                if not member.isfile() or name in extracted:
+                    raise AssertionError('Fixture member is not a unique regular file')
+                target = app / name
+                target.parent.mkdir(exist_ok=True)
+                with source.extractfile(member) as incoming, target.open('xb') as output:
+                    shutil.copyfileobj(incoming, output)
+                target.chmod(0o644)
+                extracted.add(name)
+                if len(extracted) == 2:
+                    break
+            assert extracted == {'resources/app.asar', 'antigravity'}
     archive.unlink()
     if digest(app / 'resources/app.asar') != profile['asar_sha256']:
         raise AssertionError('Official ASAR identity mismatch')
@@ -99,6 +108,7 @@ def exercise(profile_key, profile, folder, report):
     asar = app / 'resources/app.asar'
     original = asar.read_bytes()
     original_exe = digest(app / 'Antigravity.exe') if SYSTEM == 'windows' else None
+    original_linux_binary = digest(app / 'antigravity') if SYSTEM == 'linux' else None
     metadata = asar.stat()
     state_file = state / 'state.json'
     run(launcher(app, state, 'status'))
@@ -111,6 +121,7 @@ def exercise(profile_key, profile, folder, report):
         assert digest(app / 'Antigravity.exe') == original_exe
     else:
         assert (asar.stat().st_uid, asar.stat().st_gid, asar.stat().st_mode) == (metadata.st_uid, metadata.st_gid, metadata.st_mode)
+        assert digest(app / 'antigravity') == original_linux_binary
     report['checks'].append('install-original-and-preserve-executable-or-file-permissions')
     run(launcher(app, state, 'status'))
     run(launcher(app, state, 'install'))
@@ -157,6 +168,8 @@ def exercise(profile_key, profile, folder, report):
     assert asar.read_bytes() == original
     if SYSTEM == 'windows':
         assert digest(app / 'Antigravity.exe') == original_exe
+    else:
+        assert digest(app / 'antigravity') == original_linux_binary
     assert json.loads(state_file.read_text(encoding='utf-8'))['phase'] == 'restored'
     run(launcher(app, state, 'restore'))
     report['checks'].append('byte-identical-restore-and-idempotent-restore')
