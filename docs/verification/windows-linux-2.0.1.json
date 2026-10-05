@@ -1,0 +1,455 @@
+{
+  "package_version": "2.0.1",
+  "verified_on": "2026-10-05",
+  "tested_commit": "580028112313e03bb211b33a837b9b56ca7dce46",
+  "run_url": "https://github.com/fadeichev2121/antigravity-russian/actions/runs/37259045111",
+  "result": "success",
+  "profile_count": 24,
+  "scope": "Native installer lifecycle on extracted official files; application startup, GUI and Google login were not tested.",
+  "results": [
+    {
+      "profile": "linux-arm64-2.15.0",
+      "runner_os": "linux",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-arm64-2.15.1",
+      "runner_os": "linux",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-arm64-2.16.0",
+      "runner_os": "linux",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-arm64-2.17.0",
+      "runner_os": "linux",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-arm64-2.18.1",
+      "runner_os": "linux",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-arm64-2.19.1",
+      "runner_os": "linux",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-x64-2.15.0",
+      "runner_os": "linux",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-x64-2.15.1",
+      "runner_os": "linux",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-x64-2.16.0",
+      "runner_os": "linux",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-x64-2.17.0",
+      "runner_os": "linux",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-x64-2.18.1",
+      "runner_os": "linux",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "linux-x64-2.19.1",
+      "runner_os": "linux",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-arm64-2.15.0",
+      "runner_os": "windows",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-arm64-2.15.1",
+      "runner_os": "windows",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-arm64-2.16.0",
+      "runner_os": "windows",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-arm64-2.17.0",
+      "runner_os": "windows",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-arm64-2.18.1",
+      "runner_os": "windows",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-arm64-2.19.1",
+      "runner_os": "windows",
+      "runner_arch": "arm64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-x64-2.15.0",
+      "runner_os": "windows",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-x64-2.15.1",
+      "runner_os": "windows",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-x64-2.16.0",
+      "runner_os": "windows",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-x64-2.17.0",
+      "runner_os": "windows",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-x64-2.18.1",
+      "runner_os": "windows",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    },
+    {
+      "profile": "windows-x64-2.19.1",
+      "runner_os": "windows",
+      "runner_arch": "x64",
+      "python_version": "3.13.15",
+      "checks": [
+        "install-original-and-preserve-executable-or-file-permissions",
+        "idempotent-install",
+        "translation-upgrade-preserves-original-backups",
+        "reject-modified-app-without-overwriting",
+        "reject-corrupted-backup-without-overwriting",
+        "byte-identical-restore-and-idempotent-restore",
+        "standalone-download-bootstrap",
+        "powershell-7-bootstrap"
+      ],
+      "app_executed": false,
+      "google_login_tested": false,
+      "result": "success"
+    }
+  ]
+}
