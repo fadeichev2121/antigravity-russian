@@ -90,7 +90,7 @@ def private_directory(path, uid, gid):
         command = """
 $ErrorActionPreference='Stop'
 $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User
-$targets=@(ConvertFrom-Json -InputObject $env:ANTIGRAVITY_RU_PRIVATE_DIRECTORIES)
+$targets=ConvertFrom-Json -InputObject $env:ANTIGRAVITY_RU_PRIVATE_DIRECTORIES
 foreach ($p in $targets) {
 $old=[System.IO.Directory]::GetAccessControl($p)
 if ($env:ANTIGRAVITY_RU_NEW_DIRECTORY -ne '1' -and $old.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value) { throw ('State directory belongs to another user: ' + $p) }
