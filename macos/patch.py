@@ -25,6 +25,9 @@ DEFAULT_APP = Path("/Applications/Antigravity.app")
 STATE_SCHEMA = 1
 VERSION = "2.19.1"
 ORIGINAL_ASAR_SHA256 = "341234faf45bd1776fd5418a3c288dedc5487ebfcf153f53d75de17cfe15c1de"
+# Exact archive from the earlier local translation, before this installer's
+# state/backup format existed. Recognition is read-only; never adopt or replace it.
+LEGACY_PATCHED_ASAR_SHA256 = "01ce9917421bb5c01cbcfe44f69c974577dde502b13ab106fd3860a1791b1514"
 MARKER = "// Antigravity RU preload v1"
 MODIFIED_FILES = (
     "Contents/Resources/app.asar", "Contents/Info.plist",
@@ -388,12 +391,18 @@ def require_local_signature(app):
 
 
 def install(app, state_dir, user):
-    mutation_tools()
     info = app_info(app)
-    writable_app(app)
     saved = read_state(state_dir, app, user)
     info_path = app / "Contents/Info.plist"
     asar_path = app / "Contents/Resources/app.asar"
+    original = regular_file(asar_path).read_bytes()
+    if saved is None and digest(original) == LEGACY_PATCHED_ASAR_SHA256:
+        print("[OK] Русский интерфейс уже установлен ранним локальным патчем. Файлы не изменены.")
+        print("[i] Повторная установка не нужна. Эта установка не зарегистрирована в публичном установщике.")
+        print("[i] Для отката нужна резервная копия от той ранней установки; пункт «Откат» её автоматически не подключает.")
+        return
+    mutation_tools()
+    writable_app(app)
     if saved and saved["status"] == "installed":
         verify_records(app, saved["patched_files"])
         print("[OK] Русский патч уже установлен. Перезапусти Antigravity.")
@@ -403,9 +412,8 @@ def install(app, state_dir, user):
     if running(app):
         raise RuntimeError("Полностью закрой Antigravity через Cmd+Q, затем повтори установку.")
     require_local_signature(app)
-    original = asar_path.read_bytes()
     if digest(original) != ORIGINAL_ASAR_SHA256:
-        raise RuntimeError("Исходный архив отличается от версии, для которой подготовлен патч. Файлы не изменены.")
+        raise RuntimeError("Архив не совпадает с поддерживаемой исходной сборкой или известным ранним переводом. Выбери «Статус / совместимость» для подробностей. Файлы не изменены.")
     dictionary = json.loads(regular_file(PACKAGE / "ru.json").read_text(encoding="utf-8"))
     if not isinstance(dictionary, dict) or not dictionary or not all(isinstance(k, str) and isinstance(v, str) for k, v in dictionary.items()):
         raise RuntimeError("Некорректный словарь перевода.")
@@ -467,6 +475,8 @@ def restore(app, state_dir, user):
     writable_app(app)
     state = read_state(state_dir, app, user)
     if state is None:
+        if file_hash(regular_file(app / MODIFIED_FILES[0])) == LEGACY_PATCHED_ASAR_SHA256:
+            raise RuntimeError("Найден ранний локальный русский патч. Для его отката нужна резервная копия от ранней установки; публичный установщик не имеет записи о ней. Файлы не изменены.")
         raise RuntimeError("Не найдена запись об установке и резервной копии.")
     if state.get("status") == "restored":
         verify_records(app, state["original_files"])
@@ -513,8 +523,15 @@ def status(app, state_dir, user):
     print(f"Версия: {info.get('CFBundleShortVersionString')}")
     print(f"Каталог состояния: {state_dir}")
     if state is None:
+        if current == LEGACY_PATCHED_ASAR_SHA256:
+            print("[OK] Русский интерфейс уже установлен ранним локальным патчем.")
+            print("Архив совпадает с известной ранней установкой; повторное применение не требуется.")
+            print("Записи и резервной копии публичного установщика нет. Автоматический откат этой установки недоступен.")
+            return
         print("Патч не зарегистрирован.")
         print("Исходный архив поддерживается." if current == ORIGINAL_ASAR_SHA256 else "Архив отличается от поддерживаемой сборки.")
+        if current != ORIGINAL_ASAR_SHA256:
+            print(f"SHA-256 архива: {current}")
         try:
             require_local_signature(app)
             print("Локальная подпись поддерживается.")
