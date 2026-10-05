@@ -10,11 +10,15 @@ usage() {
   bash install.sh                         — меню
   bash install.sh install                 — установить перевод
   bash install.sh status                  — статус / совместимость
-  bash install.sh restore                 — восстановить исходные файлы
+  bash install.sh restore                 — откат и отключение автовосстановления
+  bash install.sh auto-enable             — включить автовосстановление
+  bash install.sh auto-disable            — отключить автовосстановление
+  bash install.sh auto-status             — состояние автовосстановления
+  bash install.sh auto-check              — проверить обновление сейчас
   bash install.sh status --app /путь      — указать папку приложения
   bash install.sh --help                  — справка
 
-Параметры: --app ПАПКА, --state-dir ПАПКА.
+Параметры: --app ПАПКА, --state-dir ПАПКА, --control-dir ПАПКА.
 Если путь не указан: /opt/Antigravity. Нужны Linux и Python 3.9+.
 Поддерживается папка официальной Linux-сборки Antigravity из tar.gz.
 Укажи --app с папкой, в которой находятся antigravity и resources/app.asar.
@@ -26,21 +30,27 @@ HELP
 ACTION=menu
 if [ "$#" -gt 0 ]; then
   case "$1" in
-    menu|install|status|restore) ACTION="$1"; shift ;;
+    menu|install|status|restore|auto-enable|auto-disable|auto-status|auto-check) ACTION="$1"; shift ;;
     -h|--help) usage; exit 0 ;;
-    --app|--state-dir) ;;
+    --app|--state-dir|--control-dir) ;;
     *) printf '[Ошибка] Неизвестное действие: %s\n' "$1" >&2; exit 1 ;;
   esac
 fi
 APP=/opt/Antigravity
+APP_EXPLICIT=0
 STATE_DIR=
+CONTROL_DIR=
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --app|--state-dir)
+    --app|--state-dir|--control-dir)
       if [ "$#" -lt 2 ] || [ -z "$2" ]; then
         printf '[Ошибка] После %s нужна папка.\n' "$1" >&2; exit 1
       fi
-      if [ "$1" = --app ]; then APP="$2"; else STATE_DIR="$2"; fi
+      case "$1" in
+        --app) APP="$2"; APP_EXPLICIT=1 ;;
+        --state-dir) STATE_DIR="$2" ;;
+        --control-dir) CONTROL_DIR="$2" ;;
+      esac
       shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) printf '[Ошибка] Неизвестный параметр: %s\n' "$1" >&2; exit 1 ;;
@@ -65,10 +75,14 @@ fi
 PYTHON_BIN="$("$PYTHON_BIN" -c 'import os,sys; print(os.path.realpath(sys.executable))')"
 APP="$("$PYTHON_BIN" -c 'import os,sys; print(os.path.abspath(os.path.expanduser(sys.argv[1])))' "$APP")"
 PATCH_ARGS=(--app "$APP")
+AUTO_ARGS=()
+if [ "$APP_EXPLICIT" -eq 1 ]; then AUTO_ARGS+=(--app "$APP"); fi
 if [ -n "$STATE_DIR" ]; then
   STATE_DIR="$("$PYTHON_BIN" -c 'import os,sys; print(os.path.abspath(os.path.expanduser(sys.argv[1])))' "$STATE_DIR")"
   PATCH_ARGS+=(--state-dir "$STATE_DIR")
+  AUTO_ARGS+=(--state-dir "$STATE_DIR")
 fi
+if [ -n "$CONTROL_DIR" ]; then AUTO_ARGS+=(--control-dir "$CONTROL_DIR"); fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 
 # A standalone downloaded launcher obtains the whole source package in a
@@ -157,7 +171,8 @@ try:
                  'portable/pe_integrity.py',
                  'common/asar.py', 'common/translation.py', 'macos/ru.json',
                  'common/profiles.py', 'macos/ui-runtime.js',
-                 'linux/install.sh', 'windows/install.ps1'):
+                 'linux/install.sh', 'windows/install.ps1',
+                 'updater/manager.py', 'updater/adapter.py', 'updater/package.py', 'updater/service.py'):
         if not (destination / name).is_file():
             raise SystemExit('Ошибка: в пакете не хватает файлов.')
     retained = packages / temporary.name
@@ -205,8 +220,25 @@ run_patch() {
   fi
 }
 
+run_auto() {
+  local operation="$1"
+  shift
+  "$PYTHON_BIN" "$ROOT/updater/manager.py" "$operation" ${AUTO_ARGS[@]+"${AUTO_ARGS[@]}"} "$@"
+}
+
 perform_action() {
   local action="$1"
+  case "$action" in
+    auto-enable) run_auto enable; return $? ;;
+    auto-disable) run_auto disable; return $? ;;
+    auto-status) run_auto status; return $? ;;
+    auto-check) run_auto check --manual; return $? ;;
+    restore)
+      if run_auto restore --manual; then return 0; else
+        local result=$?
+        if [ "$result" -ne 3 ]; then return "$result"; fi
+      fi ;;
+  esac
   if [ "$action" = install ]; then
     printf '\nЗакрой Antigravity и дождись завершения его обновления.\n'
     printf 'Будет изменён app.asar; исходный файл сохранится для отката.\n'
@@ -219,20 +251,24 @@ if [ "$ACTION" != menu ]; then
   exit $?
 fi
 if [ ! -t 0 ]; then
-  printf '[Ошибка] Запусти меню в Терминале или укажи действие install, status, restore.\n' >&2
+  printf '[Ошибка] Запусти меню в Терминале или укажи действие install, status, restore или auto-enable/disable/status/check.\n' >&2
   exit 1
 fi
 while true; do
   printf '\n==== Русский интерфейс Antigravity для Linux ====\n'
   printf 'Папка приложения: %s\n' "$APP"
-  printf ' 1) Установить русский интерфейс\n 2) Статус / совместимость\n 3) Откат\n 0) Выход\nВыбор: '
+  printf ' 1) Установить русский интерфейс\n 2) Статус / совместимость\n 3) Откат\n 4) Включить автовосстановление после обновлений\n 5) Отключить автовосстановление\n 6) Статус автовосстановления\n 7) Проверить обновление сейчас\n 0) Выход\nВыбор: '
   if ! IFS= read -r choice; then printf '\n'; exit 0; fi
   case "$choice" in
     1) operation=install ;;
     2) operation=status ;;
     3) operation=restore ;;
+    4) operation=auto-enable ;;
+    5) operation=auto-disable ;;
+    6) operation=auto-status ;;
+    7) operation=auto-check ;;
     0) exit 0 ;;
-    *) printf '[Ошибка] Выбери 1, 2, 3 или 0.\n' >&2; continue ;;
+    *) printf '[Ошибка] Выбери пункт от 0 до 7.\n' >&2; continue ;;
   esac
   if perform_action "$operation"; then
     :

@@ -21,7 +21,7 @@ from asar import Asar
 from translation import make_patch
 from profiles import load_profiles
 
-PACKAGE_VERSION = '2.0.1'
+PACKAGE_VERSION = '2.1.0'
 
 SYSTEM = 'windows' if sys.platform == 'win32' else 'linux' if sys.platform.startswith('linux') else None
 FILES = ['resources/app.asar'] + (['Antigravity.exe'] if SYSTEM == 'windows' else [])
@@ -281,7 +281,7 @@ def require_closed(app):
     if SYSTEM == 'windows':
         command = "$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[Text.UTF8Encoding]::new(); $p=@(Get-CimInstance Win32_Process | Select-Object ProcessId,Name,ExecutablePath); ConvertTo-Json -InputObject $p -Compress"
         result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', command],
-                                capture_output=True, encoding='utf-8', check=True)
+                                capture_output=True, encoding='utf-8', check=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         items = json.loads(result.stdout)
         prefix = os.path.normcase(str(app) + os.sep)
         updater = os.path.normcase(str(app.parent / 'Update.exe'))

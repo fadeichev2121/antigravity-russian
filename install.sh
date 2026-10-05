@@ -19,7 +19,11 @@ usage() {
 Действия:
   bash $SCRIPT_NAME install   — установить перевод
   bash $SCRIPT_NAME status    — статус и совместимость
-  bash $SCRIPT_NAME restore   — откат
+  bash $SCRIPT_NAME restore   — откат и отключение автовосстановления
+  bash $SCRIPT_NAME auto-enable  — включить автовосстановление
+  bash $SCRIPT_NAME auto-disable — отключить автовосстановление
+  bash $SCRIPT_NAME auto-status  — состояние автовосстановления
+  bash $SCRIPT_NAME auto-check   — проверить обновление сейчас
   bash $SCRIPT_NAME --help    — эта справка
 
 Сначала полностью закрой приложение через Cmd+Q.
@@ -27,14 +31,16 @@ usage() {
 EOF
 }
 if [ "$#" -gt 0 ]; then
-  ACTION="$1"
-  shift
+  case "$1" in
+    --app|--state-dir|--control-dir|--approve-signature) ACTION="menu" ;;
+    *) ACTION="$1"; shift ;;
+  esac
 else
   ACTION="menu"
 fi
 case "$ACTION" in
   --help|-h) usage; exit 0 ;;
-  menu|install|status|restore) ;;
+  menu|install|status|restore|auto-enable|auto-disable|auto-status|auto-check) ;;
   *) printf '[Ошибка] Неизвестное действие: %s\n' "$ACTION" >&2; usage; exit 1 ;;
 esac
 
@@ -126,7 +132,7 @@ with tarfile.open(archive, "r:gz") as source:
 manifest = json.loads((destination / "manifest.json").read_text(encoding="utf-8"))
 if manifest.get("repository") != repo or manifest.get("format") != 1:
     raise SystemExit("Ошибка: загружен пакет другого проекта.")
-for name in ("install.sh", "macos/patch.py", "macos/ru.json", "macos/ui-runtime.js", "common/asar.py", "common/translation.py", "common/profiles.py", "profiles.json"):
+for name in ("install.sh", "macos/patch.py", "macos/ru.json", "macos/ui-runtime.js", "common/asar.py", "common/translation.py", "common/profiles.py", "profiles.json", "updater/manager.py", "updater/adapter.py", "updater/package.py", "updater/service.py"):
     if not (destination / name).is_file():
         raise SystemExit("Ошибка: в пакете не хватает файлов.")
 PYEXTRACT
@@ -166,6 +172,19 @@ PATCH="$ROOT/macos/patch.py"
 run_patch() {
   action="$1"
   shift
+  local patch_args=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --control-dir) shift 2 ;;
+      --approve-signature) shift ;;
+      *) patch_args+=("$1"); shift ;;
+    esac
+  done
+  if [ "${#patch_args[@]}" -gt 0 ]; then
+    set -- "${patch_args[@]}"
+  else
+    set --
+  fi
   if [ "$action" = "status" ]; then
     "$PYTHON_BIN" "$PATCH" "$action" "$@"
     return $?
@@ -194,9 +213,43 @@ PYAPP
   fi
 }
 
+run_auto() {
+  local operation="$1"
+  shift
+  "$PYTHON_BIN" "$ROOT/updater/manager.py" "$operation" "$@"
+}
+
 perform_action() {
   action="$1"
   shift
+  case "$action" in
+    auto-enable)
+      printf '\nАвтовосстановление запускается от твоего аккаунта и проверяет обновление каждые две минуты.\n'
+      printf 'Поддерживаемая новая сборка будет переведена после выхода из Antigravity; для каждой сборки сохраняется отдельная копия.\n'
+      printf 'На macOS официальная подпись Google будет заменяться локальной; ослабится проверка происхождения библиотек.\n'
+      local approved=0 arg
+      for arg in "$@"; do
+        if [ "$arg" = --approve-signature ]; then approved=1; fi
+      done
+      if [ "$approved" -eq 1 ]; then run_auto enable "$@"; return $?; fi
+      printf 'Согласен включить автовосстановление с локальной переподписью? Введи «да» или «нет»: '
+      if ! IFS= read -r consent; then
+        printf '\n[Ошибка] Согласие не получено.\n' >&2; return 1
+      fi
+      case "$consent" in
+        да|Да|ДА|yes|YES|y|Y) run_auto enable --approve-signature "$@" ;;
+        *) printf '[i] Включение отменено.\n'; return 0 ;;
+      esac
+      return $? ;;
+    auto-disable) run_auto disable "$@"; return $? ;;
+    auto-status) run_auto status "$@"; return $? ;;
+    auto-check) run_auto check --manual "$@"; return $? ;;
+    restore)
+      if run_auto restore --manual "$@"; then return 0; else
+        local result=$?
+        if [ "$result" -ne 3 ]; then return "$result"; fi
+      fi ;;
+  esac
   if [ "$action" = "install" ] && [ "$REPO" = "antigravity-russian" ]; then
     printf '\nУстановленное приложение Antigravity будет изменено; резервные файлы для отката сохраняются.\n'
     printf 'Официальная подпись Google, если она есть, будет заменена локальной; ослабится проверка происхождения библиотек.\n'
@@ -235,6 +288,10 @@ while true; do
   printf ' 1) Установить русский интерфейс\n'
   printf ' 2) Статус / совместимость\n'
   printf ' 3) Откат\n'
+  printf ' 4) Включить автовосстановление после обновлений\n'
+  printf ' 5) Отключить автовосстановление\n'
+  printf ' 6) Статус автовосстановления\n'
+  printf ' 7) Проверить обновление сейчас\n'
   printf ' 0) Выход\n'
   printf 'Выбор: '
   if ! IFS= read -r choice; then printf '\n'; exit 0; fi
@@ -242,8 +299,12 @@ while true; do
     1) operation="install" ;;
     2) operation="status" ;;
     3) operation="restore" ;;
+    4) operation="auto-enable" ;;
+    5) operation="auto-disable" ;;
+    6) operation="auto-status" ;;
+    7) operation="auto-check" ;;
     0) exit 0 ;;
-    *) printf '[Ошибка] Выбери 1, 2, 3 или 0.\n' >&2; continue ;;
+    *) printf '[Ошибка] Выбери пункт от 0 до 7.\n' >&2; continue ;;
   esac
   if perform_action "$operation" "$@"; then
     :

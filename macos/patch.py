@@ -27,7 +27,7 @@ from profiles import load_profiles, compatible
 
 DEFAULT_APP = Path("/Applications/Antigravity.app")
 STATE_SCHEMA = 1
-PACKAGE_VERSION = "2.0.1"
+PACKAGE_VERSION = "2.1.0"
 # Exact archive from the earlier local translation, before this installer's
 # state/backup format existed. Recognition is read-only; never adopt or replace it.
 LEGACY_PATCHED_ASAR_SHA256 = "01ce9917421bb5c01cbcfe44f69c974577dde502b13ab106fd3860a1791b1514"
@@ -186,7 +186,7 @@ def transfer_owner(root, user):
 
 
 def mutation_tools():
-    for name in ("codesign", "ditto", "pgrep"):
+    for name in ("codesign", "ditto"):
         path = Path("/usr/bin") / name
         regular_file(path)
         if not os.access(path, os.X_OK):
@@ -264,11 +264,25 @@ def atomic_write(path, data, mode=0o644, owner=None):
 
 
 def running(app):
-    pattern = "^" + re.escape(str(app / "Contents/MacOS/Antigravity")) + "($| )"
-    result = subprocess.run(["/usr/bin/pgrep", "-f", pattern], capture_output=True)
-    if result.returncode not in (0, 1):
-        raise RuntimeError("Не удалось определить, запущен ли Antigravity.")
-    return result.returncode == 0
+    """Inspect executable paths, including helpers and ShipIt; never stop them."""
+    result = subprocess.run(["/bin/ps", "-wwaxo", "pid=,comm="], capture_output=True, text=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        raise RuntimeError("Не удалось проверить процессы Antigravity; изменение файлов остановлено.")
+    prefix = str(app) + "/"
+    for line in result.stdout.splitlines():
+        fields = line.strip().split(None, 1)
+        if len(fields) != 2 or not fields[0].isdecimal():
+            raise RuntimeError("Не удалось прочитать путь процесса; изменение файлов остановлено.")
+        executable = fields[1]
+        if executable.startswith(prefix):
+            return True
+        # Squirrel's updater can live outside the bundle after the app quits.
+        lower = executable.lower()
+        if "/" in executable and "antigravity" in lower and ".shipit/" in lower:
+            return True
+        if "/" not in executable and (lower.startswith("antigravity") or lower == "shipit"):
+            raise RuntimeError("Не удалось определить путь процесса Antigravity или ShipIt. Дождись завершения обновления.")
+    return False
 
 
 def signature_kind(app):

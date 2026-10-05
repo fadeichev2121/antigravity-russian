@@ -1,7 +1,7 @@
 {
   "format": 1,
   "repository": "antigravity-russian",
-  "package_version": "2.0.1",
+  "package_version": "2.1.0",
   "platforms": [
     "macos",
     "windows",
@@ -46,5 +46,22 @@
     "tested_commit": "580028112313e03bb211b33a837b9b56ca7dce46",
     "run_url": "https://github.com/fadeichev2121/antigravity-russian/actions/runs/37259045111",
     "report": "docs/verification/windows-linux-2.0.1.json"
+  },
+  "auto_update_api": 1,
+  "auto_reapply": {
+    "platforms": [
+      "macos",
+      "windows",
+      "linux"
+    ],
+    "enabled_by_default": false,
+    "scheduler_runtime_verified": false,
+    "future_versions_require_published_profile": true,
+    "fixture_verification": {
+      "status": "passed",
+      "tests": 58,
+      "host": "macos",
+      "report": "docs/verification/auto-reapply-2.1.0.json"
+    }
   }
 }

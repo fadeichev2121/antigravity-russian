@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-05",
+  "repository": "antigravity-russian",
+  "package_version": "2.1.0",
+  "test_environment": {
+    "platform": "darwin",
+    "python": "3.12.3"
+  },
+  "command": "python3 -m unittest discover -s tests -p 'test_updater*.py'",
+  "result": "passed",
+  "tests": 58,
+  "scope": [
+    "synthetic temporary app updates",
+    "backup validation and recovery",
+    "exact target routing",
+    "stable observations and permission refusal",
+    "durable versioned runner and re-enable",
+    "bounded source archives and immutable commit refresh",
+    "generated schedule definitions",
+    "mocked scheduler registration and ownership checks",
+    "Unix launcher routing on macOS"
+  ],
+  "real_app_execution_verified": false,
+  "real_vendor_update_verified": false,
+  "scheduler_runtime_verified": {
+    "macos": false,
+    "windows": false,
+    "linux": false
+  },
+  "real_services_activated": false,
+  "publication_not_part_of_this_verification": true,
+  "code_sha256": {
+    "updater/manager.py": "25680e922722491478f14e22ebaf2a085b74c37176e18898c142dc018f89fd35",
+    "updater/package.py": "a10d211cf4ca075eb7369c805d6d843e963e4d48c28bbd3604ff29983b32eb21",
+    "updater/service.py": "43b001b759c8c9d5f96bbd8f6511ee2831f2e27c08f2e80fd8bf5e78f3aa0898",
+    "updater/adapter.py": "54ea2b814590dce8a330095967e449cb93b44aacf2095ca695b9a4eed66bb89c"
+  }
+}
